@@ -10,7 +10,7 @@ rdm_iters = 100
 ncores_per_node = 16
 time='24:00:00'
 system_name = 'N2_1.0977_6o6e'
-neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_E5-2650/bin/dneci'
+neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_gnu_E5-2650/bin/dneci'
 seed = 14
 
 system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
