@@ -13,6 +13,8 @@ system_name = 'N2_1.0977_6o6e'
 neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_E5-2650/bin/dneci'
 seed = 14
 
+system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
+
 def shell(cmd):
     return Popen(cmd, shell=1, stderr=PIPE, stdout=PIPE).communicate()
 
@@ -93,7 +95,7 @@ for config, dirname in confit:
         'time':time, 
         'wd':dirname, 
         'neci_exe':neci_exe,
-        'interface'=os.path.abspath('../pyscf_interface.py')
+        'system_def':system_def
     }
 
     host_strings.render_jobfile(*args, **kwargs)

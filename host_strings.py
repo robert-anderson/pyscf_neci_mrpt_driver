@@ -18,6 +18,7 @@ export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_core.so:$MKLROOT/lib/intel64/libmk
 . /users/k1507071/virtualenvs/python2/bin/activate
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/users/k1507071/sharedscratch/code/pyscf:$PYTHONPATH
+export PYTHONPATH={driver_dir}:$PYTHONPATH
 
 function trailing_float () {{
     echo $1 | grep -Eo "\-?[0-9]+\.[0-9]+\s*$"
@@ -85,6 +86,7 @@ cd {wd}
 . /scratch/home/mmm0043/bin/python2/bin/activate
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/scratch/home/mmm0043/Scratch/pyscf:$PYTHONPATH
+export PYTHONPATH={driver_dir}:$PYTHONPATH
 
 function trailing_float () {{
     echo $1 | grep -Eo "\-?[0-9]+\.[0-9]+\s*$"
@@ -102,7 +104,7 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python {interface} . > pyscf.out.$i
+  python -c "import pyscf_interface as x; {system_def}.make_nevpt_object('.').kernel()" > pyscf.out.$i
 
   echo $Herm_3rdm $E_2rdm \
   $(get_output_value pyscf.out.$i Sr) \
@@ -147,6 +149,8 @@ def get_jobfile():
     return jobfiles[get_domain()]
 
 def render_jobfile(fname, **kwargs):
+    kwargs['driver_dir'] = os.path.abspath(os.path.dirname(__file__))
+
     if domain()=='prv.rosalind.compute.estate':
         if 'gnu' in kwargs[neci_exe]:
             kwargs['modules'] = \
@@ -170,7 +174,7 @@ module unload python/3.6.3 python3/3.6 python3/recommended; module load python2/
 '''
     with open(fname, 'w') as f: f.write(get_jobfile().format(**kwargs))
 
-
+render_jobfile(None)
 
 
 
