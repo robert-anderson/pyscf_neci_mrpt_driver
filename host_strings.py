@@ -25,7 +25,7 @@ function trailing_float () {{
 }}
 
 function get_output_value () {{
-    trailing_float "$(grep -E "^$2\s" $1)"
+    trailing_float "$(grep -E "^$2\s" $1 | head -n1)"
 }}
 
 function postprocess {{
@@ -38,17 +38,7 @@ function postprocess {{
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
   python {interface} . > pyscf.out.$i
 
-  echo $Herm_3rdm $E_2rdm \
-  $(get_output_value pyscf.out.$i Sr) \
-  $(get_output_value pyscf.out.$i Si) \
-  $(get_output_value pyscf.out.$i Sijrs) \
-  $(get_output_value pyscf.out.$i Sijr) \
-  $(get_output_value pyscf.out.$i Srsi) \
-  $(get_output_value pyscf.out.$i Srs) \
-  $(get_output_value pyscf.out.$i Sij) \
-  $(get_output_value pyscf.out.$i Sir) \
-  $(get_output_value pyscf.out.$i "Nevpt2 Energy") \
-  >> results.dat
+  {result_output}
 
   mv tmp.out neci.out.$i
   mv FCIMCStats FCIMCStats.$i; mv FCIMCStats2 FCIMCStats2.$i
@@ -106,17 +96,7 @@ function postprocess {{
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
   python -c "import pyscf_interface as x; {system_def}.make_nevpt_object('.').kernel()" > pyscf.out.$i
 
-  echo $Herm_3rdm $E_2rdm \
-  $(get_output_value pyscf.out.$i Sr) \
-  $(get_output_value pyscf.out.$i Si) \
-  $(get_output_value pyscf.out.$i Sijrs) \
-  $(get_output_value pyscf.out.$i Sijr) \
-  $(get_output_value pyscf.out.$i Srsi) \
-  $(get_output_value pyscf.out.$i Srs) \
-  $(get_output_value pyscf.out.$i Sij) \
-  $(get_output_value pyscf.out.$i Sir) \
-  $(get_output_value pyscf.out.$i "Nevpt2 Energy") \
-  >> results.dat
+  {result_output}
 
   mv tmp.out neci.out.$i
   mv FCIMCStats FCIMCStats.$i; mv FCIMCStats2 FCIMCStats2.$i
@@ -139,6 +119,39 @@ done
 '''}
 
 
+
+# common blocks:
+result_output = \
+r'''
+  echo \
+  $(get_output_value pyscf.out.$i "Sr    (-1)',   E") \
+  $(get_output_value pyscf.out.$i "Si    (+1)',   E") \
+  $(get_output_value pyscf.out.$i "Sijrs (0)  ,   E") \
+  $(get_output_value pyscf.out.$i "Sijr  (+1) ,   E") \
+  $(get_output_value pyscf.out.$i "Srsi  (-1) ,   E") \
+  $(get_output_value pyscf.out.$i "Srs   (-2) ,   E") \
+  $(get_output_value pyscf.out.$i "Sij   (+2) ,   E") \
+  $(get_output_value pyscf.out.$i "Sir   (0)' ,   E") \
+  >> subspace_energies.dat
+
+  echo \
+  $(get_output_value pyscf.out.$i "Sr    (-1)',   N") \
+  $(get_output_value pyscf.out.$i "Si    (+1)',   N") \
+  $(get_output_value pyscf.out.$i "Sijrs (0)  ,   N") \
+  $(get_output_value pyscf.out.$i "Sijr  (+1) ,   N") \
+  $(get_output_value pyscf.out.$i "Srsi  (-1) ,   N") \
+  $(get_output_value pyscf.out.$i "Srs   (-2) ,   N") \
+  $(get_output_value pyscf.out.$i "Sij   (+2) ,   N") \
+  $(get_output_value pyscf.out.$i "Sir   (0)' ,   N") \
+  >> subspace_norms.dat
+
+  echo \
+  $Herm_3rdm $E_2rdm $(get_output_value pyscf.out.$i "Nevpt2 Energy") \
+  >> results.dat
+'''
+
+
+
 from subprocess import Popen, PIPE
 
 def get_domain():
@@ -150,6 +163,7 @@ def get_jobfile():
 
 def render_jobfile(fname, **kwargs):
     kwargs['driver_dir'] = os.path.abspath(os.path.dirname(__file__))
+    kwargs['result_output'] = result_output
 
     if domain()=='prv.rosalind.compute.estate':
         if 'gnu' in kwargs[neci_exe]:
