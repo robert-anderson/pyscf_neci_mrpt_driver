@@ -31,8 +31,6 @@ def copy_file(fname, srcdir, dstdir):
     copy('{}/{}'.format(srcdir, fname), '{}/{}'.format(dstdir, fname))
 
 
-jobfile=host_strings.get_jobfile()
-
 class ConfigIterator:
     def __init__(self, *names_and_lists):
         self.n = len(names_and_lists)//2
@@ -53,6 +51,10 @@ confit = ConfigIterator(
         'gran', (1, 2, 4, 8),
         'seed', (14, 15, 16, 17))
 
+main_facs = (1,1,1,0,60)
+spawn_facs = (2,1,1,0,16)
+recv_facs = (2,1,1,0,72)
+
 for config, dirname in confit:
     print config, dirname
 
@@ -61,20 +63,40 @@ for config, dirname in confit:
     link_file('FCIDUMP', '.', dirname)
     link_file('casci.pkl', '.', dirname)
 
-    write_inp('{}/initial.inp'.format(dirname), NELEC, config['walkers'], write_wf=True, write_core=True,
-            pops_core=config['coredets'], ss_start=5000, granularity=config['gran'], rdm_start=6000,
-            write_rdm=True, spawn_facs=(2,1,1,0,4), seed=config['seed'], main_facs=(1,1,1,0,2), 
-            recv_facs=(2,1,1,0,4), rdm_iters=rdm_iters)
+    args = [NELEC, config['walkers']]
+    kwargs = {
+        'write_wf': True,
+        'write_rdm': True,
+        'granularity': config['gran'],
+        'shiftdamp': shiftdamp,
+        'spawn_facs': spawn_facs, 
+        'seed': config['seed'], 
+        'main_facs': main_facs, 
+        'recv_facs': recv_facs, 
+        'rdm_iters': rdm_iters
+    }
+    
+    if config['coredets']==0:
+        write_inp('{}/initial.inp'.format(dirname), *args, rdm_start=2000, **kwargs)
+        write_inp('{}/restart.inp'.format(dirname), *args, read_rdm=True, rdm_start=0, **kwargs)
+    else:
+        write_inp('{}/initial.inp'.format(dirname), *args, write_core=True,
+                pops_core=config['coredets'], ss_start=1000, rdm_start=2000, **kwargs)
+        write_inp('{}/restart.inp'.format(dirname), *args, read_core=True, read_rdm=True,
+                rdm_start=0, **kwargs)
 
-    write_inp('{}/restart.inp'.format(dirname), NELEC, config['walkers'], write_wf=True, read_core=True, 
-            read_rdm=True, rdm_iters=rdm_iters, seed=config['seed'], granularity=config['gran'], rdm_start=0,
-            write_rdm=True, main_facs=(1,1,1,0,2), spawn_facs=(2,1,1,0,4), recv_facs=(2,1,1,0,4))
 
-    with open('{}/submit.sh'.format(dirname), 'w') as f: 
-        f.write(jobfile.format(ncores=1*ncores_per_node,
-        name='pt2_{}_{}'.format(system_name, '_'.join(map(str, [config[k] for k in confit.names]))),
-        time=time, wd=dirname, neci_exe=neci_exe,
-        interface=os.path.abspath('../pyscf_interface.py')))
+    args = ['{}/submit.sh'.format(dirname)]
+    kwargs = {
+        'ncores':1*ncores_per_node,
+        'name':'pt2_{}_{}'.format(system_name, '_'.join(map(str, [config[k] for k in confit.names]))),
+        'time':time, 
+        'wd':dirname, 
+        'neci_exe':neci_exe,
+        'interface'=os.path.abspath('../pyscf_interface.py')
+    }
+
+    host_strings.render_jobfile(*args, **kwargs)
 
 
 
