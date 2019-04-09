@@ -94,7 +94,7 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "import pyscf_interface as x; {system_def}.make_nevpt_object('.').kernel()" > pyscf.out.$i
+  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel()" > pyscf.out.$i
 
   {result_output}
 
@@ -153,6 +153,7 @@ r'''
 
 
 from subprocess import Popen, PIPE
+import os
 
 def get_domain():
     domainname, _ = Popen('hostname -d', shell=1, stdout=PIPE, stderr=PIPE).communicate()
@@ -165,7 +166,7 @@ def render_jobfile(fname, **kwargs):
     kwargs['driver_dir'] = os.path.abspath(os.path.dirname(__file__))
     kwargs['result_output'] = result_output
 
-    if domain()=='prv.rosalind.compute.estate':
+    if get_domain()=='prv.rosalind.compute.estate':
         if 'gnu' in kwargs[neci_exe]:
             kwargs['modules'] = \
 '''
@@ -187,13 +188,3 @@ module load libs/openmpi/2.0.1/intel15.0
 module unload python/3.6.3 python3/3.6 python3/recommended; module load python2/recommended
 '''
     with open(fname, 'w') as f: f.write(get_jobfile().format(**kwargs))
-
-render_jobfile(None)
-
-
-
-
-
-
-
-

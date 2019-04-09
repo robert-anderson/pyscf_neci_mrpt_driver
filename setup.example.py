@@ -4,16 +4,19 @@ from subprocess import PIPE, Popen
 import itertools
 import host_strings
 
+system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
+if not os.path.exists('FCIDUMP'):
+    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object()"'.format(system_def)
+    assert 0
 NELEC = int(Popen(r'grep -Eo "NELEC\s*\=\s*[0-9]+" FCIDUMP | grep -Eo "[0-9]+"',
     shell=1, stdout=PIPE, stderr=PIPE).communicate()[0])
 rdm_iters = 100
 ncores_per_node = 16
 time='24:00:00'
 system_name = 'N2_1.0977_6o6e'
-neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_gnu_E5-2650/bin/dneci'
+#neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_gnu_E5-2650/bin/dneci'
+neci_exe = '/scratch/home/mmm0043/Scratch/neci/build_gnu_release/bin/dneci'
 seed = 14
-
-system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
 
 def shell(cmd):
     return Popen(cmd, shell=1, stderr=PIPE, stdout=PIPE).communicate()
@@ -48,14 +51,17 @@ class ConfigIterator:
                 '/'.join(['{}_{}'.format(str(tmp[i]), self.names[i]) for i in range(self.n)]))
 
 confit = ConfigIterator(
-        'walkers', (int(2e5),),
-        'coredets', (1, 50),
+        'walkers', (int(1e5),),
+        'coredets', (1, 10),
         'gran', (1, 2, 4, 8),
         'seed', (14, 15, 16, 17))
 
 main_facs = (1,1,1,0,60)
 spawn_facs = (2,1,1,0,16)
 recv_facs = (2,1,1,0,72)
+shiftdamp=0.5
+rdm_start=500
+ss_start=100
 
 for config, dirname in confit:
     print config, dirname
@@ -72,6 +78,7 @@ for config, dirname in confit:
         'granularity': config['gran'],
         'shiftdamp': shiftdamp,
         'spawn_facs': spawn_facs, 
+        'memoryfacspawn': 100.0,
         'seed': config['seed'], 
         'main_facs': main_facs, 
         'recv_facs': recv_facs, 
@@ -79,16 +86,14 @@ for config, dirname in confit:
     }
     
     if config['coredets']==0:
-        write_inp('{}/initial.inp'.format(dirname), *args, rdm_start=2000, **kwargs)
+        write_inp('{}/initial.inp'.format(dirname), *args, rdm_start=rdm_start, **kwargs)
         write_inp('{}/restart.inp'.format(dirname), *args, read_rdm=True, rdm_start=0, **kwargs)
     else:
         write_inp('{}/initial.inp'.format(dirname), *args, write_core=True,
-                pops_core=config['coredets'], ss_start=1000, rdm_start=2000, **kwargs)
+                pops_core=config['coredets'], ss_start=ss_start, rdm_start=rdm_start, **kwargs)
         write_inp('{}/restart.inp'.format(dirname), *args, read_core=True, read_rdm=True,
                 rdm_start=0, **kwargs)
 
-
-    args = ['{}/submit.sh'.format(dirname)]
     kwargs = {
         'ncores':1*ncores_per_node,
         'name':'pt2_{}_{}'.format(system_name, '_'.join(map(str, [config[k] for k in confit.names]))),
@@ -97,8 +102,7 @@ for config, dirname in confit:
         'neci_exe':neci_exe,
         'system_def':system_def
     }
-
-    host_strings.render_jobfile(*args, **kwargs)
+    host_strings.render_jobfile('{}/submit.sh'.format(dirname), **kwargs)
 
 
 
