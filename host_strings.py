@@ -12,7 +12,7 @@ r'''#$ -S /bin/bash
 
 cd {wd}
 
-{modules}
+{env_setup}
 export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_core.so:$MKLROOT/lib/intel64/libmkl_sequential.so
 
 . /users/k1507071/virtualenvs/python2/bin/activate
@@ -36,10 +36,14 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python {interface} . > pyscf.out.$i
+  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel(save_dms={save_dms})" > pyscf.out.$i
 
   {result_output}
+  {rdm_errors}
 
+  for contraction in $(ls S*.pkl); do
+    mv $contraction contractions/$contraction.$i
+  done
   mv tmp.out neci.out.$i
   mv FCIMCStats FCIMCStats.$i; mv FCIMCStats2 FCIMCStats2.$i
   cp *POPSFILE* last_pops
@@ -47,6 +51,10 @@ function postprocess {{
 
 if [ ! -e last_pops ]; then
   mkdir last_pops
+fi
+
+if [ ! -e contractions ]; then
+  mkdir contractions
 fi
 
 if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
@@ -72,7 +80,7 @@ r'''#$ -S /bin/bash
 
 cd {wd}
 
-{modules}
+{env_setup}
 . /scratch/home/mmm0043/bin/python2/bin/activate
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/scratch/home/mmm0043/Scratch/pyscf:$PYTHONPATH
@@ -94,10 +102,14 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel()" > pyscf.out.$i
+  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel(save_dms={save_dms})" > pyscf.out.$i
 
   {result_output}
+  {rdm_errors}
 
+  for contraction in $(ls S*.pkl); do
+    mv $contraction contractions/$contraction.$i
+  done
   mv tmp.out neci.out.$i
   mv FCIMCStats FCIMCStats.$i; mv FCIMCStats2 FCIMCStats2.$i
   cp *POPSFILE* last_pops
@@ -105,6 +117,10 @@ function postprocess {{
 
 if [ ! -e last_pops ]; then
   mkdir last_pops
+fi
+
+if [ ! -e contractions ]; then
+  mkdir contractions
 fi
 
 if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
@@ -150,10 +166,22 @@ r'''
   >> results.dat
 '''
 
-
-
 from subprocess import Popen, PIPE
 import os
+
+def output_rdm_errors():
+    # assumes the exact dms are in the current directory
+    python_commands = []
+    python_commands.append('import numpy as np')
+    python_commands.append('import pickle')
+    python_commands.append('f = open(\'dms.pkl\', \'rb\')')
+    python_commands.append('stoch_dms=pickle.load(f)')
+    python_commands.append('f.close()')
+    python_commands.append('f = open(\'{}/dms.pkl\', \'rb\')'.format(os.getcwd()))
+    python_commands.append('exact_dms=pickle.load(f)')
+    python_commands.append('f.close()')
+    python_commands.append('print \' \'.join([str(1.0-np.linalg.norm(stoch_dms[i])/np.linalg.norm(exact_dms[i])) for i in (\'1\', \'2\', \'3\', \'f3ac\', \'f3ca\')])')
+    return r'python -c "{}" >> rdm_errors.dat'.format('; '.join(python_commands))
 
 def get_domain():
     domainname, _ = Popen('hostname -d', shell=1, stdout=PIPE, stderr=PIPE).communicate()
@@ -165,17 +193,31 @@ def get_jobfile():
 def render_jobfile(fname, **kwargs):
     kwargs['driver_dir'] = os.path.abspath(os.path.dirname(__file__))
     kwargs['result_output'] = result_output
+    # if the saved exact RDMs are present, assume that we want the errors calculated at each postprocessing
+    if os.path.exists('dms.pkl'):
+        kwargs['save_dms'] = True
+        kwargs['rdm_errors'] = output_rdm_errors()
+    else:
+        kwargs['save_dms'] = False
+        kwargs['rdm_errors'] = ''
 
     if get_domain()=='prv.rosalind.compute.estate':
-        if 'gnu' in kwargs[neci_exe]:
-            kwargs['modules'] = \
+        if 'gnu' in kwargs['neci_exe']:
+            kwargs['env_setup'] = \
 '''
 module purge
-module load general/python/2.7.10
-module load libs/openblas/0.2.19/gcc5.3.0
+module load general/python/2.7.10 
+module load libs/openmpi/2.0.0/gcc5.3.0
+export LD_LIBRARY_PATH=/opt/apps/libs/openblas/gcc/0.2.19/lib:$LD_LIBRARY_PATH
+export LIBRARY_PATH=/opt/apps/libs/openblas/gcc/0.2.19/lib:$LIBRARY_PATH
+export INCLUDE=/opt/apps/libs/openblas/gcc/0.2.19/include:$INCLUDE
+export C_INCLUDE_PATH=/opt/apps/libs/openblas/gcc/0.2.19/include:$C_INCLUDE_PATH
+MKLROOT=/opt/apps/intel/composer_xe_2015.3.187/mkl
+export LD_LIBRARY_PATH=/opt/apps/intel/composer_xe_2015.3.187/mkl/lib/intel64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/apps/intel/composer_xe_2015.3.187/compiler/lib/intel64:$LD_LIBRARY_PATH
 '''
         else:
-            kwargs['modules'] = \
+            kwargs['env_setup'] = \
 '''
 module load general/python/2.7.10
 module load libs/openblas/0.2.19/gcc5.3.0
@@ -183,8 +225,9 @@ module unload libs/openmpi/1.10.2/gcc5.3.0
 module load libs/openmpi/2.0.1/intel15.0
 '''
     else:
-        kwargs['modules'] = \
+        kwargs['env_setup'] = \
 '''            
 module unload python/3.6.3 python3/3.6 python3/recommended; module load python2/recommended
 '''
     with open(fname, 'w') as f: f.write(get_jobfile().format(**kwargs))
+

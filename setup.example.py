@@ -6,7 +6,8 @@ import host_strings
 
 system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
 if not os.path.exists('FCIDUMP'):
-    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object()"'.format(system_def)
+    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object().kernel(save_dms=True) > pyscf.exact.out" # do exact NEVPT2'.format(system_def)
+    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object(\'.\').kernel()" # make FCIDUMP and casci.pkl'.format(system_def)
     assert 0
 NELEC = int(Popen(r'grep -Eo "NELEC\s*\=\s*[0-9]+" FCIDUMP | grep -Eo "[0-9]+"',
     shell=1, stdout=PIPE, stderr=PIPE).communicate()[0])
