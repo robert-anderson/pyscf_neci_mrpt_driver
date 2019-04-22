@@ -36,7 +36,8 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel(save_dms={save_dms})" > pyscf.out.$i
+  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.')" > pyscf.out.$i
+
 
   {result_output}
   {rdm_errors}
@@ -58,12 +59,12 @@ if [ ! -e contractions ]; then
 fi
 
 if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
-  mpirun -np {ncores} {neci_exe} initial.inp > tmp.out
+  mpirun -np {ncores} {neci_exe} initial_hbrdm.inp > tmp.out
   postprocess
 fi
 
 while true; do
-  mpirun -np {ncores} {neci_exe} restart.inp > tmp.out
+  mpirun -np {ncores} {neci_exe} restart_hbrdm.inp > tmp.out
   postprocess
 done
 ''','thomas.ucl.ac.uk':\
@@ -102,7 +103,7 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "import pyscf_interface as _; _.{system_def}.make_nevpt_object('.').kernel(save_dms={save_dms})" > pyscf.out.$i
+  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.')" > pyscf.out.$i
 
   {result_output}
   {rdm_errors}
@@ -124,12 +125,12 @@ if [ ! -e contractions ]; then
 fi
 
 if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
-  gerun {neci_exe} initial.inp > tmp.out
+  gerun {neci_exe} initial_hbrdm.inp > tmp.out
   postprocess
 fi
 
 while true; do
-  gerun {neci_exe} restart.inp > tmp.out
+  gerun {neci_exe} restart_hbrdm.inp > tmp.out
   postprocess
 done
 '''}
