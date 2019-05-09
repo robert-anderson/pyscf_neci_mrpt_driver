@@ -3,20 +3,18 @@ import os
 from subprocess import PIPE, Popen
 import itertools
 import host_strings
+from glob import glob
 
-system_def = "Homo('N', 6, 6, 1.0977, basis='ccpvdz')"
-if not os.path.exists('FCIDUMP'):
-    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object().kernel(save_dms=True) > pyscf.exact.out" # do exact NEVPT2'.format(system_def)
-    print 'python -c "import pyscf_interface as _; _.{}.make_nevpt_object(\'.\').kernel()" # make FCIDUMP and casci.pkl'.format(system_def)
-    assert 0
+if not os.path.exists('FCIDUMP'):  assert 0
 NELEC = int(Popen(r'grep -Eo "NELEC\s*\=\s*[0-9]+" FCIDUMP | grep -Eo "[0-9]+"',
     shell=1, stdout=PIPE, stderr=PIPE).communicate()[0])
 rdm_iters = 100
 ncores_per_node = 16
+reset_period = 20
 time='24:00:00'
-system_name = 'N2_1.0977_6o6e'
-#neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_gnu_E5-2650/bin/dneci'
-neci_exe = '/scratch/home/mmm0043/Scratch/neci/build_gnu_release/bin/dneci'
+system_name = 'Cr2_1.6788_12o12e'
+neci_exe = '/mnt/lustre/users/k1507071/code/neci/build_gnu_E5-2650/bin/dneci'
+#neci_exe = '/scratch/home/mmm0043/Scratch/neci/build_gnu_release/bin/dneci'
 seed = 14
 
 def shell(cmd):
@@ -52,17 +50,20 @@ class ConfigIterator:
                 '/'.join(['{}_{}'.format(str(tmp[i]), self.names[i]) for i in range(self.n)]))
 
 confit = ConfigIterator(
-        'walkers', (int(1e5),),
-        'coredets', (1, 10),
-        'gran', (1, 2, 4, 8),
-        'seed', (14, 15, 16, 17))
+        'walkers', (int(1e6), ),
+        'coredets', (20, 200),
+        'gran', (8, 16, 32),
+        'seed', (14, 15, 16))
 
-main_facs = (1,1,1,0,60)
-spawn_facs = (2,1,1,0,16)
-recv_facs = (2,1,1,0,72)
-shiftdamp=0.5
-rdm_start=500
-ss_start=100
+
+main_facs = (1,1,4,0,60)
+spawn_facs = (2,1,4,0,50)
+recv_facs = (2,1,8,0,50)
+shiftdamp=0.05
+rdm_start=1500
+ss_start=1000
+memoryfacspawn=20.0
+threshs=tuple(10.0**-i for i in range(15))
 
 for config, dirname in confit:
     print config, dirname
@@ -70,7 +71,7 @@ for config, dirname in confit:
     os.makedirs(dirname)
 
     link_file('FCIDUMP', '.', dirname)
-    link_file('casci.pkl', '.', dirname)
+    link_file('nevpt2_store.pkl', '.', dirname)
 
     args = [NELEC, config['walkers']]
     kwargs = {
@@ -79,20 +80,27 @@ for config, dirname in confit:
         'granularity': config['gran'],
         'shiftdamp': shiftdamp,
         'spawn_facs': spawn_facs, 
-        'memoryfacspawn': 100.0,
+        'memoryfacspawn': memoryfacspawn,
         'seed': config['seed'], 
         'main_facs': main_facs, 
-        'recv_facs': recv_facs, 
+        'recv_facs': recv_facs,
         'rdm_iters': rdm_iters
     }
+
     
     if config['coredets']==0:
-        write_inp('{}/initial.inp'.format(dirname), *args, rdm_start=rdm_start, **kwargs)
-        write_inp('{}/restart.inp'.format(dirname), *args, read_rdm=True, rdm_start=0, **kwargs)
+        write_inp('{}/low_rdm.inp'.format(dirname), *args, two_rdm_only=True, rdm_start=rdm_start, **kwargs)
+        write_inp('{}/initial_hbrdm.inp'.format(dirname), *args, rdm_start=rdm_start, **kwargs)
+        write_inp('{}/reset_hbrdm.inp'.format(dirname), *args, rdm_start=0, read_wf=True, **kwargs)
+        write_inp('{}/continue_hbrdm.inp'.format(dirname), *args, read_rdm=True, rdm_start=0, **kwargs)
     else:
-        write_inp('{}/initial.inp'.format(dirname), *args, write_core=True,
-                pops_core=config['coredets'], ss_start=ss_start, rdm_start=rdm_start, **kwargs)
-        write_inp('{}/restart.inp'.format(dirname), *args, read_core=True, read_rdm=True,
+        write_inp('{}/low_rdm.inp'.format(dirname), *args, two_rdm_only=True, rdm_start=rdm_start, 
+                write_core=True, pops_core=config['coredets'], ss_start=ss_start, **kwargs)
+        write_inp('{}/initial_hbrdm.inp'.format(dirname), *args, rdm_start=rdm_start, 
+                write_core=True, pops_core=config['coredets'], ss_start=ss_start, **kwargs)
+        write_inp('{}/reset_hbrdm.inp'.format(dirname), *args, rdm_start=0, read_wf=True, 
+                read_core=True, pops_core=config['coredets'], **kwargs)
+        write_inp('{}/continue_hbrdm.inp'.format(dirname), *args, read_core=True, read_rdm=True,
                 rdm_start=0, **kwargs)
 
     kwargs = {
@@ -100,8 +108,9 @@ for config, dirname in confit:
         'name':'pt2_{}_{}'.format(system_name, '_'.join(map(str, [config[k] for k in confit.names]))),
         'time':time, 
         'wd':dirname, 
-        'neci_exe':neci_exe,
-        'system_def':system_def
+        'reset_period': reset_period,
+        'threshs': str(threshs),
+        'neci_exe':neci_exe
     }
     host_strings.render_jobfile('{}/submit.sh'.format(dirname), **kwargs)
 
