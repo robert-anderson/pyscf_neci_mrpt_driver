@@ -25,7 +25,7 @@ function trailing_float () {{
 }}
 
 function get_output_value () {{
-    trailing_float "$(grep -E "^$2\s" $1 | head -n1)"
+    trailing_float "$(grep $2 $1)"
 }}
 
 function postprocess {{
@@ -36,8 +36,7 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.')" > pyscf.out.$i
-
+  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.', threshs={threshs})" > pyscf.out.$i
 
   {result_output}
   {rdm_errors}
@@ -58,13 +57,18 @@ if [ ! -e contractions ]; then
   mkdir contractions
 fi
 
-if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
-  mpirun -np {ncores} {neci_exe} initial_hbrdm.inp > tmp.out
-  postprocess
-fi
-
 while true; do
-  mpirun -np {ncores} {neci_exe} restart_hbrdm.inp > tmp.out
+  i=$(ls neci.out* | wc -l)
+  if [ $i = 0 ]; then
+    echo "initialising FCIQMC calculation"
+    mpirun -np {ncores} {neci_exe} initial_hbrdm.inp > tmp.out
+  elif [ {reset_period} != 0 ] && [ $(echo "$i%{reset_period}" | bc) = 0 ]; then
+    echo "resetting RDM accumulations and continuing from scratch"
+    mpirun -np {ncores} {neci_exe} reset_hbrdm.inp > tmp.out
+  else
+    echo "continuing an existing RDM accumulation"
+    mpirun -np {ncores} {neci_exe} continue_hbrdm.inp > tmp.out
+  fi
   postprocess
 done
 ''','thomas.ucl.ac.uk':\
@@ -92,7 +96,7 @@ function trailing_float () {{
 }}
 
 function get_output_value () {{
-    trailing_float "$(grep -E "^$2\s" $1)"
+    trailing_float "$(grep $2 $1)"
 }}
 
 function postprocess {{
@@ -103,7 +107,7 @@ function postprocess {{
   i=$(ls neci.out* | wc -l)
   E_2rdm=$(grep "TOTAL ENERGY" tmp.out | grep -Eo "\-?[0-9]+.*")
   Herm_3rdm=$(grep "HBRDM HERMITICITY" tmp.out | grep -Eo "\-?[0-9]+.*")
-  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.')" > pyscf.out.$i
+  python -c "from pyscf.fciqmcscf import serializable_nevpt2 as _; _.SerializableNevpt2(fname='nevpt2_store.pkl', fciqmc_dir='.', threshs={threshs})" > pyscf.out.$i
 
   {result_output}
   {rdm_errors}
@@ -124,47 +128,34 @@ if [ ! -e contractions ]; then
   mkdir contractions
 fi
 
-if [ $(grep "Calculation ended" neci.out.* | wc -l) = 0 ]; then
-  gerun {neci_exe} initial_hbrdm.inp > tmp.out
-  postprocess
-fi
-
 while true; do
-  gerun {neci_exe} restart_hbrdm.inp > tmp.out
+  i=$(ls neci.out* | wc -l)
+  if [ $i = 0 ]; then
+    echo "initialising FCIQMC calculation"
+    gerun {neci_exe} initial_hbrdm.inp > tmp.out
+  elif [ {reset_period} != 0 ] && [ $(echo "$i%{reset_period}" | bc) = 0 ]; then
+    echo "resetting RDM accumulations and continuing from scratch"
+    gerun {neci_exe} reset_hbrdm.inp > tmp.out
+  else
+    echo "continuing an existing RDM accumulation"
+    gerun {neci_exe} continue_hbrdm.inp > tmp.out
+  fi
   postprocess
 done
 '''}
 
 
 
+#for label in "Sr    (-1)'," "Si    (+1)'," "Sijrs (0)  ," "Sijr  (+1) ," "Srsi  (-1) ," "Srs   (-2) ," "Sij   (+2) ," "Sir   (0)' ,"; do
 # common blocks:
 result_output = \
 r'''
-  echo \
-  $(get_output_value pyscf.out.$i "Sr    (-1)',   E") \
-  $(get_output_value pyscf.out.$i "Si    (+1)',   E") \
-  $(get_output_value pyscf.out.$i "Sijrs (0)  ,   E") \
-  $(get_output_value pyscf.out.$i "Sijr  (+1) ,   E") \
-  $(get_output_value pyscf.out.$i "Srsi  (-1) ,   E") \
-  $(get_output_value pyscf.out.$i "Srs   (-2) ,   E") \
-  $(get_output_value pyscf.out.$i "Sij   (+2) ,   E") \
-  $(get_output_value pyscf.out.$i "Sir   (0)' ,   E") \
-  >> subspace_energies.dat
-
-  echo \
-  $(get_output_value pyscf.out.$i "Sr    (-1)',   N") \
-  $(get_output_value pyscf.out.$i "Si    (+1)',   N") \
-  $(get_output_value pyscf.out.$i "Sijrs (0)  ,   N") \
-  $(get_output_value pyscf.out.$i "Sijr  (+1) ,   N") \
-  $(get_output_value pyscf.out.$i "Srsi  (-1) ,   N") \
-  $(get_output_value pyscf.out.$i "Srs   (-2) ,   N") \
-  $(get_output_value pyscf.out.$i "Sij   (+2) ,   N") \
-  $(get_output_value pyscf.out.$i "Sir   (0)' ,   N") \
-  >> subspace_norms.dat
-
-  echo \
-  $Herm_3rdm $E_2rdm $(get_output_value pyscf.out.$i "Nevpt2 Energy") \
-  >> results.dat
+  for label in "Sr    (-1)'," "Si    (+1)'," "Sijr  (+1) ," "Srsi  (-1) ," "Srs   (-2) ," "Sij   (+2) ," "Sir   (0)' ,"; do
+    grep "$label   E" pyscf.out.$i | cut -d = -f 2 >> $(echo $label | cut -d " " -f 1).energy.dat
+    grep "$label   N" pyscf.out.$i | cut -d = -f 2 >> $(echo $label | cut -d " " -f 1).norm.dat
+  done
+  grep "Nevpt2 Energy" pyscf.out.$i | cut -d = -f 2 >> nevpt2.energy.dat
+  echo $Herm_3rdm $E_2rdm >> rdms.dat
 '''
 
 from subprocess import Popen, PIPE

@@ -2,7 +2,7 @@
 
 def write_inp(fname, electrons, nwalkers, nmcyc=-1, write_wf=False, read_wf=False, write_rdm=False, shiftdamp=0.05, memoryfacspawn=20.0,
         read_rdm=False, granularity=1, inv_granularity=0, pops_core=0, write_core=False, read_core=False, two_rdm_only=False, stepsshift=5,
-        ss_start=0, rdm_start=0, rdm_iters=-0, rdm_energy_iters=None, walkcontgrow=False, seed=14, main_facs=(1,)*5, spawn_facs=(1,)*5, recv_facs=(1,)*5,
+        ss_start=0, rdm_start=0, rdm_iters=0, rdm_energy_iters=None, walkcontgrow=False, seed=14, main_facs=(1,)*5, spawn_facs=(1,)*5, recv_facs=(1,)*5,
         hbrdm_offdiag_frac_occ_thresh=0.0):
     main_facs = ' '.join(map(str, main_facs))
     spawn_facs = ' '.join(map(str, spawn_facs))
