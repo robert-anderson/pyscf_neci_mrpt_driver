@@ -112,7 +112,8 @@ for config, dirname in confit:
         'threshs': str(threshs),
         'neci_exe':neci_exe
     }
-    host_strings.render_jobfile('{}/submit.sh'.format(dirname), **kwargs)
+	submit_script = host_strings.SubmitScript()
+    submit_script.render('{}/submit.sh'.format(dirname), **kwargs)
 
 
 

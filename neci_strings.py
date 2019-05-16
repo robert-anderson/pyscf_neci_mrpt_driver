@@ -3,10 +3,10 @@
 def write_inp(fname, electrons, nwalkers, nmcyc=-1, write_wf=False, read_wf=False, write_rdm=False, shiftdamp=0.05, memoryfacspawn=20.0,
         read_rdm=False, granularity=1, inv_granularity=0, pops_core=0, write_core=False, read_core=False, two_rdm_only=False, stepsshift=5,
         ss_start=0, rdm_start=0, rdm_iters=0, rdm_energy_iters=None, walkcontgrow=False, seed=14, main_facs=(1,)*5, spawn_facs=(1,)*5, recv_facs=(1,)*5,
-        hbrdm_offdiag_frac_occ_thresh=0.0):
-    main_facs = ' '.join(map(str, main_facs))
-    spawn_facs = ' '.join(map(str, spawn_facs))
-    recv_facs = ' '.join(map(str, recv_facs))
+        hbrdm_offdiag_frac_occ_thresh=0.0, tau=''):
+    if main_facs is not None: main_facs = ' '.join(map(str, main_facs))
+    if spawn_facs is not None: spawn_facs = ' '.join(map(str, spawn_facs))
+    if recv_facs is not None: recv_facs = ' '.join(map(str, recv_facs))
     with open(fname, 'w') as f:
         f.write('''title
 system read noorder
@@ -25,7 +25,7 @@ totalwalkers {}
 memoryfacpart 10.0
 memoryfacspawn {}
 seed {}
-startsinglepart 100
+startsinglepart 10
 shiftdamp {}
 truncinitiator
 addtoinitiator 3.0
@@ -39,6 +39,7 @@ nmcyc {}
 '''.format(electrons, nwalkers, memoryfacspawn, seed, shiftdamp, stepsshift, nmcyc))
         if write_rdm and rdm_iters>0: f.write('rdmsamplingiters {}\n'.format(rdm_iters))
         if read_wf or read_rdm: f.write('readpops\n')
+        if len(tau): f.write('tau {}\n'.format(tau))
         if walkcontgrow: f.write('walkcontgrow\n')
         if read_core:
             if ss_start:
@@ -74,9 +75,9 @@ logging
                 f.write('hbrdm-offdiag-frac-occ-thresh {}\n'.format(hbrdm_offdiag_frac_occ_thresh))
             f.write('write-spin-free-rdm\n')
             f.write('printonerdm\n')
-            f.write('rdm-main-size-fac {}\n'.format(main_facs))
-            f.write('rdm-spawn-size-fac {}\n'.format(spawn_facs))
-            f.write('rdm-recv-size-fac {}\n'.format(recv_facs))
+            if main_facs is not None: f.write('rdm-main-size-fac {}\n'.format(main_facs))
+            if spawn_facs is not None: f.write('rdm-spawn-size-fac {}\n'.format(spawn_facs))
+            if recv_facs is not None: f.write('rdm-recv-size-fac {}\n'.format(recv_facs))
         if write_rdm or write_wf:
             f.write('binarypops\n')
         if read_rdm:
