@@ -1,7 +1,7 @@
 def write_inp(fname, electrons, nwalkers, nmcyc=-1, time=None, write_wf=False, read_wf=False, write_rdm=False, shiftdamp=0.05, memoryfacspawn=20.0,
         read_rdm=False, granularity=1, cicj_promotion_hwhm_fraction=0, pops_core=0, write_core=False, read_core=False, two_rdm_only=False, stepsshift=5,
         ss_start=0, rdm_start=0, rdm_iters=0, rdm_energy_iters=None, walkcontgrow=False, seed=14, main_facs=(1,)*5, spawn_facs=(1,)*5, recv_facs=(1,)*5,
-        hbrdm_offdiag_frac_occ_thresh=0.0, tau='', trial_start=0, pops_trial=0, niter_cicj_histogram=100):
+        hbrdm_offdiag_frac_occ_thresh=0.0, tau='', trial_start=0, pops_trial=0, niter_cicj_histogram=100, cicj_promotion_scale=1.0):
     if main_facs is not None: main_facs = ' '.join(map(str, main_facs))
     if spawn_facs is not None: spawn_facs = ' '.join(map(str, spawn_facs))
     if recv_facs is not None: recv_facs = ' '.join(map(str, recv_facs))
@@ -75,6 +75,7 @@ logging
                 f.write('nevpt2\n')
                 f.write('hbrdm-ghost-granularity {}\n'.format(granularity))
                 f.write('cicj-promotion-hwhm-fraction {}\n'.format(cicj_promotion_hwhm_fraction))
+                f.write('cicj-promotion-scale {}\n'.format(cicj_promotion_scale))
                 f.write('niter-cicj-histogram {}\n'.format(niter_cicj_histogram))
             f.write('write-spin-free-rdm\n')
             f.write('printonerdm\n')
